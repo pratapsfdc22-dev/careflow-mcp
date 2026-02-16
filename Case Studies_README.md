@@ -29,8 +29,7 @@ Automate patient task creation, appointment scheduling, and care coordination us
 
 ### 🛒 2. E-commerce Order Processing
 **File**: [02-ecommerce-order-processing.md](./02-ecommerce-order-processing.md)
-**Example Workflow**: [ecommerce-order-workflow.json](../examples/ecommerce-order-workflow.json)
-
+**Example Workflow**:[(https://github.com/pratapsfdc22-dev/Careflow-MCP/blob/main/ecommerce-order-workflow.json)]
 Process orders, manage inventory, and handle customer notifications through conversational AI.
 
 **Key Benefits**:
