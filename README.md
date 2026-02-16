@@ -22,7 +22,7 @@ Production-ready healthcare workflow automation powered by n8n and the Model Con
 
 ## 📚 Documentation & Examples
 
-- **[Case Studies](./case-studies/README.md)** - 5 real-world implementation examples with ROI metrics
+- **[Case Studies][(.[/case-studies/README.md](https://github.com/pratapsfdc22-dev/Careflow-MCP/blob/main/Case%20Studies_README.md))]** - 5 real-world implementation examples with ROI metrics
 - **[HEALTHCARE.md](./HEALTHCARE.md)** - Comprehensive HIPAA compliance guide (our differentiator!)
 - **[Example Workflows](./examples/)** - Importable n8n workflow JSON files
 
