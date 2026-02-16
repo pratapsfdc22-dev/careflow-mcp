@@ -72,7 +72,7 @@ Ask Claude to trigger workflows:
 
 For HIPAA compliance, security considerations, and healthcare-specific implementations, see:
 
-📄 **[HEALTHCARE.md][[ ](https://github.com/pratapsfdc22-dev/Careflow-MCP/blob/main/HEALTHCARE.md)]** - Comprehensive guide to healthcare implementations
+📄 **[HEALTHCARE.md][(https://github.com/pratapsfdc22-dev/Careflow-MCP/blob/main/HEALTHCARE.md)]** - Comprehensive guide to healthcare implementations
 
 ---
 
