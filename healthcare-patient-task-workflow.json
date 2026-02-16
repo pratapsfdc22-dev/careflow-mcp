@@ -1,0 +1,367 @@
+{
+  "name": "Healthcare Patient Task Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-task",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-patient-task",
+      "name": "Webhook - Patient Task",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "patient-task-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate and structure patient task data\nconst payload = $input.item.json.body;\n\n// Validation\nif (!payload.patientId || !payload.taskType) {\n  throw new Error('Missing required fields: patientId and taskType');\n}\n\n// Structure the task\nconst task = {\n  taskId: `TASK-${Date.now()}`,\n  patientId: payload.patientId,\n  taskType: payload.taskType,\n  priority: payload.priority || 'medium',\n  description: payload.description || '',\n  dueDate: payload.dueDate || new Date(Date.now() + 86400000).toISOString().split('T')[0],\n  assignedTo: payload.assignedTo || 'Unassigned',\n  status: 'pending',\n  createdAt: new Date().toISOString(),\n  createdBy: 'MCP-Server',\n  metadata: payload.metadata || {}\n};\n\n// Audit log\nconst auditLog = {\n  timestamp: new Date().toISOString(),\n  action: 'create_patient_task',\n  patientId: task.patientId,\n  taskId: task.taskId,\n  user: 'system',\n  ipAddress: $input.item.json.headers['x-forwarded-for'] || 'internal'\n};\n\nreturn {\n  task,\n  auditLog\n};"
+      },
+      "id": "validate-structure",
+      "name": "Validate & Structure Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.task.priority }}",
+              "operation": "equals",
+              "value2": "urgent"
+            },
+            {
+              "value1": "={{ $json.task.priority }}",
+              "operation": "equals",
+              "value2": "high"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "check-priority",
+      "name": "Check Priority",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://your-ehr-system.com/api/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{ $json.task.taskId }}"
+            },
+            {
+              "name": "patientId",
+              "value": "={{ $json.task.patientId }}"
+            },
+            {
+              "name": "taskType",
+              "value": "={{ $json.task.taskType }}"
+            },
+            {
+              "name": "priority",
+              "value": "={{ $json.task.priority }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.task.description }}"
+            },
+            {
+              "name": "dueDate",
+              "value": "={{ $json.task.dueDate }}"
+            },
+            {
+              "name": "assignedTo",
+              "value": "={{ $json.task.assignedTo }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-ehr-task",
+      "name": "Create Task in EHR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "EHR API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://your-ehr-system.com/api/tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{ $json.task.taskId }}"
+            },
+            {
+              "name": "patientId",
+              "value": "={{ $json.task.patientId }}"
+            },
+            {
+              "name": "taskType",
+              "value": "={{ $json.task.taskType }}"
+            },
+            {
+              "name": "priority",
+              "value": "={{ $json.task.priority }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $json.task.description }}"
+            },
+            {
+              "name": "dueDate",
+              "value": "={{ $json.task.dueDate }}"
+            },
+            {
+              "name": "assignedTo",
+              "value": "={{ $json.task.assignedTo }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-ehr-task-normal",
+      "name": "Create Task in EHR (Normal)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "1",
+          "name": "EHR API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "healthcare-alerts",
+        "text": "🚨 URGENT Patient Task Created\n\n*Patient ID*: {{ $json.task.patientId }}\n*Task Type*: {{ $json.task.taskType }}\n*Priority*: {{ $json.task.priority }}\n*Assigned To*: {{ $json.task.assignedTo }}\n*Due Date*: {{ $json.task.dueDate }}\n\n*Description*: {{ $json.task.description }}",
+        "otherOptions": {}
+      },
+      "id": "notify-slack-urgent",
+      "name": "Notify Slack (Urgent)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "2",
+          "name": "Slack API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://your-audit-system.com/api/logs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "timestamp",
+              "value": "={{ $json.auditLog.timestamp }}"
+            },
+            {
+              "name": "action",
+              "value": "={{ $json.auditLog.action }}"
+            },
+            {
+              "name": "patientId",
+              "value": "={{ $json.auditLog.patientId }}"
+            },
+            {
+              "name": "taskId",
+              "value": "={{ $json.auditLog.taskId }}"
+            },
+            {
+              "name": "user",
+              "value": "={{ $json.auditLog.user }}"
+            },
+            {
+              "name": "ipAddress",
+              "value": "={{ $json.auditLog.ipAddress }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-audit",
+      "name": "Log to Audit System",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3",
+          "name": "Audit System API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  taskId: $json.task.taskId,\n  patientId: $json.task.patientId,\n  status: 'created',\n  message: 'Patient task created successfully'\n}) }}"
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Patient Task": {
+      "main": [
+        [
+          {
+            "node": "Validate & Structure Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Structure Task": {
+      "main": [
+        [
+          {
+            "node": "Check Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Priority": {
+      "main": [
+        [
+          {
+            "node": "Create Task in EHR",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Task in EHR (Normal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Task in EHR": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack (Urgent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack (Urgent)": {
+      "main": [
+        [
+          {
+            "node": "Log to Audit System",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Task in EHR (Normal)": {
+      "main": [
+        [
+          {
+            "node": "Log to Audit System",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Audit System": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "healthcare",
+      "name": "Healthcare"
+    },
+    {
+      "id": "hipaa",
+      "name": "HIPAA"
+    }
+  ],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "active": false,
+  "id": "1"
+}

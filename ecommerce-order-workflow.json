@@ -1,0 +1,322 @@
+{
+  "name": "E-commerce Order Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-order",
+      "name": "Webhook - New Order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "process-order-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process and validate order data\nconst order = $input.item.json.body;\n\n// Validation\nif (!order.orderId || !order.customerId || !order.items) {\n  throw new Error('Invalid order: missing required fields');\n}\n\n// Calculate totals\nconst subtotal = order.items.reduce((sum, item) => {\n  return sum + (item.price * item.quantity);\n}, 0);\n\nconst tax = subtotal * 0.08; // 8% tax\nconst shipping = order.shippingMethod === 'express' ? 15 : 5;\nconst total = subtotal + tax + shipping;\n\n// Structure order\nconst processedOrder = {\n  orderId: order.orderId,\n  customerId: order.customerId,\n  customerEmail: order.customerEmail,\n  items: order.items,\n  pricing: {\n    subtotal: subtotal.toFixed(2),\n    tax: tax.toFixed(2),\n    shipping: shipping.toFixed(2),\n    total: total.toFixed(2)\n  },\n  shippingAddress: order.shippingAddress,\n  shippingMethod: order.shippingMethod || 'standard',\n  status: 'processing',\n  createdAt: new Date().toISOString(),\n  metadata: {\n    source: 'mcp-server',\n    processingNode: 'n8n'\n  }\n};\n\nreturn { processedOrder };"
+      },
+      "id": "validate-order",
+      "name": "Validate & Calculate Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check inventory for all items\nconst order = $input.item.json.processedOrder;\nconst items = order.items;\n\n// Simulate inventory check (replace with actual API call)\nconst inventoryResults = items.map(item => ({\n  sku: item.sku,\n  requestedQty: item.quantity,\n  availableQty: Math.floor(Math.random() * 100) + item.quantity, // Simulate availability\n  inStock: true\n}));\n\nconst allInStock = inventoryResults.every(item => item.inStock);\n\nreturn {\n  order,\n  inventoryCheck: {\n    allInStock,\n    items: inventoryResults,\n    checkedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "check-inventory",
+      "name": "Check Inventory",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.inventoryCheck.allInStock }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "inventory-available",
+      "name": "Inventory Available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://your-payment-gateway.com/api/charge",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "orderId",
+              "value": "={{ $json.order.orderId }}"
+            },
+            {
+              "name": "customerId",
+              "value": "={{ $json.order.customerId }}"
+            },
+            {
+              "name": "amount",
+              "value": "={{ $json.order.pricing.total }}"
+            },
+            {
+              "name": "currency",
+              "value": "USD"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "process-payment",
+      "name": "Process Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "payment-api",
+          "name": "Payment Gateway API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "orders@yourstore.com",
+        "toEmail": "={{ $json.order.customerEmail }}",
+        "subject": "Order Confirmed - {{ $json.order.orderId }}",
+        "text": "Thank you for your order!\n\nOrder ID: {{ $json.order.orderId }}\nTotal: ${{ $json.order.pricing.total }}\n\nYour order is being processed and will ship soon.\n\nTracking information will be sent separately.",
+        "options": {}
+      },
+      "id": "send-confirmation",
+      "name": "Send Order Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 200],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://your-shipping-api.com/api/labels",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "orderId",
+              "value": "={{ $json.order.orderId }}"
+            },
+            {
+              "name": "shippingAddress",
+              "value": "={{ $json.order.shippingAddress }}"
+            },
+            {
+              "name": "shippingMethod",
+              "value": "={{ $json.order.shippingMethod }}"
+            },
+            {
+              "name": "weight",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-shipping-label",
+      "name": "Create Shipping Label",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "shipping-api",
+          "name": "Shipping API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "orders@yourstore.com",
+        "toEmail": "={{ $json.order.customerEmail }}",
+        "subject": "Order {{ $json.order.orderId }} - Out of Stock",
+        "text": "We're sorry, but some items in your order are currently out of stock.\n\nOrder ID: {{ $json.order.orderId }}\n\nWe will notify you when the items become available.\n\nThank you for your patience!",
+        "options": {}
+      },
+      "id": "send-out-of-stock",
+      "name": "Send Out of Stock Notice",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1050, 400],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: $json.inventoryCheck.allInStock,\n  orderId: $json.order.orderId,\n  status: $json.inventoryCheck.allInStock ? 'confirmed' : 'pending',\n  total: $json.order.pricing.total,\n  message: $json.inventoryCheck.allInStock ? 'Order confirmed and processing' : 'Some items out of stock'\n}) }}"
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - New Order": {
+      "main": [
+        [
+          {
+            "node": "Validate & Calculate Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Calculate Order": {
+      "main": [
+        [
+          {
+            "node": "Check Inventory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Inventory": {
+      "main": [
+        [
+          {
+            "node": "Inventory Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inventory Available?": {
+      "main": [
+        [
+          {
+            "node": "Process Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Out of Stock Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Payment": {
+      "main": [
+        [
+          {
+            "node": "Send Order Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Create Shipping Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Shipping Label": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Out of Stock Notice": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "ecommerce",
+      "name": "E-commerce"
+    },
+    {
+      "id": "orders",
+      "name": "Orders"
+    }
+  ],
+  "pinData": {},
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "active": false,
+  "id": "2"
+}
